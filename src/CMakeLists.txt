@@ -23,5 +23,4 @@ if (NOT MOMO_BUILD_AS_LIBRARY)
         momo_targets_set_folder("samples" ${SAMPLE_TARGETS})
     endif()
 
-
 endif()
