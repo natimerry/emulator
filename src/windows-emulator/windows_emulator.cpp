@@ -452,17 +452,10 @@ void windows_emulator::setup_hooks()
         static uint64_t fake_ticks = ticks;
         static uint64_t prev_ticks = 0;
 
-        if (prev_ticks != 0)
-        {
-            if (ticks > prev_ticks)
-            {
-                fake_ticks += (ticks - prev_ticks); 
-            }
+        if (ticks > prev_ticks) {
+            fake_ticks += (ticks - prev_ticks);
         }
-        if (fake_ticks > ticks)
-        { 
-            fake_ticks = ticks;
-        }
+        fake_ticks = std::min(fake_ticks, ticks);
         prev_ticks = ticks;
 
         this->emu().reg(x64_register::rax, fake_ticks & 0xFFFFFFFF);
