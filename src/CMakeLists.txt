@@ -22,4 +22,6 @@ if (NOT MOMO_BUILD_AS_LIBRARY)
         momo_add_subdirectory_and_get_targets("samples" SAMPLE_TARGETS)
         momo_targets_set_folder("samples" ${SAMPLE_TARGETS})
     endif()
+
+
 endif()
