@@ -199,7 +199,11 @@ namespace sogen
                 }
             }
 
-            env_map[u"EMULATOR"] = u"1";
+            if (const auto* expose_emulator_env = getenv("SOGEN_EXPOSE_EMULATOR_ENV");
+                expose_emulator_env && (expose_emulator_env == "1"sv || expose_emulator_env == "true"sv))
+            {
+                env_map[u"EMULATOR"] = u"1";
+            }
 
             const auto* env = getenv("EMULATOR_ICICLE");
             if (env && (env == "1"sv || env == "true"sv))

@@ -12,12 +12,10 @@ namespace sogen
                                          const uint64_t parameters, const HARDERROR_RESPONSE_OPTION /*valid_response_option*/,
                                          const emulator_object<HARDERROR_RESPONSE> response)
         {
-            if (response)
-            {
-                response.try_write(ResponseAbort);
-            }
+            constexpr NTSTATUS status_code_mask = 0x0FFFFFFF;
+            const auto is_service_notification = (error_status & status_code_mask) == (STATUS_SERVICE_NOTIFICATION & status_code_mask);
 
-            if (error_status & STATUS_SERVICE_NOTIFICATION && number_of_parameters >= 3)
+            if (is_service_notification && number_of_parameters >= 3)
             {
                 std::array<uint64_t, 3> params = {0, 0, 0};
 
@@ -34,6 +32,21 @@ namespace sogen
                 {
                     // ignore
                 }
+            }
+
+            if (is_service_notification)
+            {
+                if (response)
+                {
+                    response.try_write(ResponseOk);
+                }
+
+                return STATUS_SUCCESS;
+            }
+
+            if (response)
+            {
+                response.try_write(ResponseAbort);
             }
 
             c.proc.exit_status = error_status;
