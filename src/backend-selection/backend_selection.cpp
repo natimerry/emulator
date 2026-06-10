@@ -1,7 +1,9 @@
 #include "backend_selection.hpp"
 
 #include <string_view>
+#if SOGEN_ENABLE_UNICORN_BACKEND
 #include <unicorn_x86_64_emulator.hpp>
+#endif
 
 #if SOGEN_ENABLE_RUST_CODE
 #include <icicle_x86_64_emulator.hpp>
@@ -21,8 +23,19 @@ namespace sogen
         {
             switch (backend)
             {
+            case backend_type::automatic:
+#if defined(_WIN64) && !defined(__MINGW64__)
+                return whp::create_x86_64_emulator();
+#elif SOGEN_ENABLE_UNICORN_BACKEND
+                return unicorn::create_x86_64_emulator();
+#else
+                break;
+#endif
+
+#if SOGEN_ENABLE_UNICORN_BACKEND
             case backend_type::unicorn:
                 return unicorn::create_x86_64_emulator();
+#endif
 
 #if SOGEN_ENABLE_RUST_CODE
             case backend_type::icicle:
@@ -52,7 +65,7 @@ namespace sogen
 
     std::unique_ptr<x86_64_emulator> create_x86_64_emulator_from_environment()
     {
-        auto backend = backend_type::unicorn;
+        auto backend = backend_type::automatic;
 
         {
             const auto* env = getenv("EMULATOR_WHP");

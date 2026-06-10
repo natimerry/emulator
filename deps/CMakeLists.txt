@@ -1,5 +1,7 @@
-set(UNICORN_ARCH "x86" CACHE STRING "")
-add_subdirectory(unicorn)
+if(SOGEN_ENABLE_UNICORN_BACKEND)
+  set(UNICORN_ARCH "x86" CACHE STRING "")
+  add_subdirectory(unicorn)
+endif()
 
 ##########################################
 

@@ -8,6 +8,7 @@ option(SOGEN_ENABLE_CLANG_TIDY "Enable clang-tidy checks" OFF)
 option(SOGEN_ENABLE_LTO "Enable interprocedural optimization (LTO/IPO)" ON)
 option(SOGEN_ENABLE_RUST_CODE "Enable code parts written in rust" ON)
 option(SOGEN_ENABLE_REFLECTION "Enable reflection using the reflect library" ON)
+option(SOGEN_ENABLE_UNICORN_BACKEND "Enable the Unicorn emulator backend" ON)
 # SDL3 provides the host UI backend on every non-Emscripten platform, so it is
 # required and enabled by default everywhere. Emscripten uses the web UI backend
 # instead and skips SDL in deps/CMakeLists.txt. project() runs after this block,

@@ -12,9 +12,14 @@ sogen_assign_source_group(${SRC_FILES})
 
 target_include_directories(backend-selection INTERFACE "${CMAKE_CURRENT_LIST_DIR}")
 
-target_link_libraries(backend-selection PRIVATE
-  unicorn-emulator
-)
+if(SOGEN_ENABLE_UNICORN_BACKEND)
+  target_link_libraries(backend-selection PRIVATE
+    unicorn-emulator
+  )
+  target_compile_definitions(backend-selection PRIVATE SOGEN_ENABLE_UNICORN_BACKEND=1)
+else()
+  target_compile_definitions(backend-selection PRIVATE SOGEN_ENABLE_UNICORN_BACKEND=0)
+endif()
 
 if (SOGEN_ENABLE_RUST)
   target_link_libraries(backend-selection PRIVATE

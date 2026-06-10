@@ -23,6 +23,9 @@ endif()
 
 target_link_libraries(windows-emulator PUBLIC emulator minidump)
 target_link_libraries(windows-emulator PRIVATE gpu-bridge-protocol vulkan-headers)
+if(WIN32)
+  target_link_libraries(windows-emulator PRIVATE iphlpapi)
+endif()
 
 if(TARGET SDL3::SDL3)
   target_link_libraries(windows-emulator PRIVATE SDL3::SDL3)
