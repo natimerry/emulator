@@ -20,6 +20,108 @@ namespace sogen
     {
         namespace
         {
+            ULONG get_volume_serial_number(const syscall_context& c, const uint8_t drive_number)
+            {
+#ifdef OS_WINDOWS
+                if (c.win_emu.emulation_root.empty() && drive_number >= 1 && drive_number <= 26)
+                {
+                    wchar_t root_path[] = L"C:\\";
+                    root_path[0] = static_cast<wchar_t>(L'A' + drive_number - 1);
+
+                    DWORD serial_number = 0;
+                    if (GetVolumeInformationW(root_path, nullptr, 0, &serial_number, nullptr, nullptr, nullptr, 0))
+                    {
+                        return serial_number;
+                    }
+                }
+#else
+                (void)c;
+#endif
+
+                return drive_number;
+            }
+
+#ifdef OS_WINDOWS
+            struct host_io_status_block
+            {
+                union
+                {
+                    NTSTATUS Status;
+                    void* Pointer;
+                };
+                ULONG_PTR Information;
+            };
+
+            using nt_query_volume_information_file_fn = NTSTATUS(NTAPI*)(HANDLE, host_io_status_block*, void*, ULONG, int);
+
+            nt_query_volume_information_file_fn get_host_nt_query_volume_information_file()
+            {
+                const auto ntdll = GetModuleHandleW(L"ntdll.dll");
+                if (!ntdll)
+                {
+                    return nullptr;
+                }
+
+                return reinterpret_cast<nt_query_volume_information_file_fn>(
+                    GetProcAddress(ntdll, "NtQueryVolumeInformationFile"));
+            }
+
+            std::optional<NTSTATUS> forward_host_volume_information(
+                const syscall_context& c, const handle file_handle,
+                const emulator_object<IO_STATUS_BLOCK<EmulatorTraits<Emu64>>> io_status_block, const uint64_t fs_information,
+                const ULONG length, const FS_INFORMATION_CLASS fs_information_class)
+            {
+                if (!c.win_emu.emulation_root.empty())
+                {
+                    return std::nullopt;
+                }
+
+                const auto* f = c.proc.files.get(file_handle);
+                if (!f || f->drive_number < 1 || f->drive_number > 26)
+                {
+                    return std::nullopt;
+                }
+
+                const auto query_volume_information = get_host_nt_query_volume_information_file();
+                if (!query_volume_information)
+                {
+                    return std::nullopt;
+                }
+
+                wchar_t volume_path[] = L"C:\\";
+                volume_path[0] = static_cast<wchar_t>(L'A' + f->drive_number - 1);
+                const auto volume =
+                    CreateFileW(volume_path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+                                FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+                if (volume == INVALID_HANDLE_VALUE)
+                {
+                    return std::nullopt;
+                }
+
+                const auto close_volume = utils::finally([&] { CloseHandle(volume); });
+                std::vector<std::byte> output(length, std::byte{0});
+                host_io_status_block host_status{};
+                const auto status = query_volume_information(volume, &host_status, output.data(), length, fs_information_class);
+                const auto bytes_to_write = std::min<std::size_t>(host_status.Information, output.size());
+                if (fs_information && bytes_to_write)
+                {
+                    c.emu.write_memory(fs_information, output.data(), bytes_to_write);
+                }
+
+                if (io_status_block)
+                {
+                    IO_STATUS_BLOCK<EmulatorTraits<Emu64>> guest_status{};
+                    guest_status.Status = status;
+                    guest_status.Information = bytes_to_write;
+                    io_status_block.write(guest_status);
+                }
+
+                c.win_emu.log.print(color::dark_gray, "--> Host volume info class 0x%X status=0x%08lX bytes=%zu\n",
+                                    fs_information_class, status, bytes_to_write);
+                return status;
+            }
+#endif
+
             std::pair<utils::file_handle, NTSTATUS> open_file(const file_system& file_sys, const windows_path& path,
                                                               const std::u16string& mode)
             {
@@ -217,6 +319,16 @@ namespace sogen
                                                      const uint64_t fs_information, const ULONG length,
                                                      const FS_INFORMATION_CLASS fs_information_class)
         {
+            c.win_emu.log.print(color::dark_gray, "--> Volume info class: 0x%X length=%lu\n", fs_information_class, length);
+
+#ifdef OS_WINDOWS
+            if (const auto status =
+                    forward_host_volume_information(c, file_handle, io_status_block, fs_information, length, fs_information_class))
+            {
+                return *status;
+            }
+#endif
+
             switch (fs_information_class)
             {
             case FileFsDeviceInformation:
@@ -255,7 +367,13 @@ namespace sogen
 
             case FileFsVolumeInformation:
                 return handle_query<FILE_FS_VOLUME_INFORMATION>(c.emu, fs_information, length, io_status_block,
-                                                                [&](FILE_FS_VOLUME_INFORMATION&) {});
+                                                                [&](FILE_FS_VOLUME_INFORMATION& info) {
+                                                                    if (const auto* f = c.proc.files.get(file_handle))
+                                                                    {
+                                                                        info.VolumeSerialNumber =
+                                                                            get_volume_serial_number(c, f->drive_number);
+                                                                    }
+                                                                });
 
             case FileFsAttributeInformation:
                 return handle_query<_FILE_FS_ATTRIBUTE_INFORMATION>(
@@ -581,7 +699,7 @@ namespace sogen
                 const emulator_object<FILE_ID_INFORMATION> info{c.emu, file_information};
                 FILE_ID_INFORMATION i{};
 
-                i.VolumeSerialNumber = f->drive_number;
+                i.VolumeSerialNumber = get_volume_serial_number(c, f->drive_number);
                 memset(&i.FileId, 0, sizeof(i.FileId));
                 memcpy(&i.FileId.Identifier[0], &file_stat.st_ino, sizeof(file_stat.st_ino));
 
