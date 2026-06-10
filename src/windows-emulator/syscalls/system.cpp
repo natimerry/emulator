@@ -9,6 +9,18 @@ namespace sogen
     {
         namespace
         {
+            template <typename T>
+            T active_processor_mask(const uint32_t processor_count)
+            {
+                constexpr auto bit_count = sizeof(T) * 8;
+                if (processor_count >= bit_count)
+                {
+                    return ~T{};
+                }
+
+                return (static_cast<T>(1) << processor_count) - 1;
+            }
+
             NTSTATUS handle_logical_processor_and_group_information(const syscall_context& c, const uint64_t input_buffer,
                                                                     const uint32_t input_buffer_length, const uint64_t system_information,
                                                                     const uint32_t system_information_length,
@@ -53,7 +65,8 @@ namespace sogen
 
                     auto& group_info = group.GroupInfo[0];
                     group_info.ActiveProcessorCount = static_cast<uint8_t>(c.proc.kusd.get().ActiveProcessorCount);
-                    group_info.ActiveProcessorMask = (1 << group_info.ActiveProcessorCount) - 1;
+                    group_info.ActiveProcessorMask = active_processor_mask<decltype(group_info.ActiveProcessorMask)>(
+                        group_info.ActiveProcessorCount);
                     group_info.MaximumProcessorCount = group_info.ActiveProcessorCount;
 
                     c.emu.write_memory(system_information + root_size, group);
@@ -177,6 +190,9 @@ namespace sogen
                                                    const uint32_t input_buffer_length, const uint64_t system_information,
                                                    const uint32_t system_information_length, const emulator_object<uint32_t> return_length)
         {
+            c.win_emu.log.print(color::dark_gray, "--> System info ex class: 0x%X in=%u out=%u\n", info_class, input_buffer_length,
+                                system_information_length);
+
             switch (info_class)
             {
             case 250: // Build 27744
@@ -344,7 +360,7 @@ namespace sogen
                     {
                         using mask_type = decltype(info.ProcessorMask);
                         const auto active_processor_count = c.proc.kusd.get().ActiveProcessorCount;
-                        info.ProcessorMask = (static_cast<mask_type>(1) << active_processor_count) - 1;
+                        info.ProcessorMask = active_processor_mask<mask_type>(active_processor_count);
                     }
                 });
             }
@@ -361,8 +377,12 @@ namespace sogen
                                                                     basic_info.AllocationGranularity = ALLOCATION_GRANULARITY;
                                                                     basic_info.MinimumUserModeAddress = MIN_ALLOCATION_ADDRESS;
                                                                     basic_info.MaximumUserModeAddress = MAX_ALLOCATION_ADDRESS;
-                                                                    basic_info.ActiveProcessorsAffinityMask = 0x0000000000000f;
-                                                                    basic_info.NumberOfProcessors = 4;
+                                                                    basic_info.ActiveProcessorsAffinityMask =
+                                                                        active_processor_mask<decltype(
+                                                                            basic_info.ActiveProcessorsAffinityMask)>(
+                                                                            c.proc.kusd.get().ActiveProcessorCount);
+                                                                    basic_info.NumberOfProcessors =
+                                                                        static_cast<char>(c.proc.kusd.get().ActiveProcessorCount);
                                                                 });
 
             case SystemSupportedProcessorArchitectures: {

@@ -231,6 +231,8 @@ namespace sogen
                                                  const uint64_t thread_information, const uint32_t thread_information_length,
                                                  const emulator_object<uint32_t> return_length)
         {
+            c.win_emu.log.print(color::dark_gray, "--> Thread info class: 0x%X length=%u\n", info_class, thread_information_length);
+
             const auto* thread = thread_handle == CURRENT_THREAD ? c.proc.active_thread : c.proc.threads.get(thread_handle);
 
             if (!thread)
