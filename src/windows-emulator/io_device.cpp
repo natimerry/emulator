@@ -662,6 +662,7 @@ namespace sogen
         if (device == u"CNG"                    //
             || device == u"RasAcd"              //
             || device == u"PcwDrv"              //
+            || device == u"SrpDevice"           //
             || device == u"DeviceApi\\CMApi"    //
             || device == u"DeviceApi\\CMNotify" //
             || device == u"ConDrv\\Server")
