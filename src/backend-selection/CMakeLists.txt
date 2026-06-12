@@ -11,6 +11,7 @@ add_library(backend-selection ${SRC_FILES})
 sogen_assign_source_group(${SRC_FILES})
 
 target_include_directories(backend-selection INTERFACE "${CMAKE_CURRENT_LIST_DIR}")
+target_link_libraries(backend-selection PUBLIC emulator)
 
 if(SOGEN_ENABLE_UNICORN_BACKEND)
   target_link_libraries(backend-selection PRIVATE
